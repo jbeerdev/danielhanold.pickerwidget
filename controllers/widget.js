@@ -30,20 +30,11 @@ if (OS_IOS && args.hideNavBar === true) {
   outerView.hideNavBar();
 }
 
-// If specific UI elements are used on Android, don't create picker views.
-if (androidSpecific) {
-  switch (args.type) {
-  case 'single-column':
-    // Use option dialog for single-column pickers on Android.
-    populateOptionsDialog();
-    break;
-  }
-}
-else {
-  var overlay = Widget.createController('overlay').getView();
+
+var overlay = Widget.createController('overlay').getView();
   // Create the controller for the picker view.
   // Pass callback functions to controller.
-  var pickerController = Widget.createController('pickerView', {
+var pickerController = Widget.createController('pickerView', {
     type: args.type,
     pickerParams: args.pickerParams,
     parentFunctions: {
@@ -51,137 +42,20 @@ else {
       done: done
     }
   });
-  pickerView = pickerController.getView('pickerView');
-  picker = pickerController.getView('picker');
-
-  outerView.add(overlay);
-  outerView.add(pickerView);
-
-  // Populate picker.
-  populatePicker();
-}
-
+pickerView = pickerController.getView('pickerView');
+if (pickerView.children) {
+        for (var c = pickerView.children.length - 1; c >= 0; c--) {
+            if(pickerView.children[c].id !== undefined && pickerView.children[c].id === 'picker') {
+                picker = pickerView.children[c];
+            }
+        }
+    }
 
 
-/*--------------------------------------------------------
-* Function.
-*-------------------------------------------------------*/
 
-/**
-* Generate and populate the optionsDialog.
-*/
-function populateOptionsDialog() {
-  var selectedIndex = undefined;
+outerView.add(overlay);
+outerView.add(pickerView);
 
-  // Convert the object into array pairs.
-  pickerValueArray = _.pairs(args.pickerValues[0]);
-
-  // Iterate over all pairs and add the original
-  // value (pair[1]) as a picker row.
-  _.each(pickerValueArray, function(pair, index){
-    pickerData.push(pair[1]);
-  });
-
-  // Determine the selected index.
-  if (_.isArray(args.selectedValues) && !_.isEmpty(args.selectedValues)) {
-    selectedIndex = getKeyIndexFromPairs(pickerValueArray, args.selectedValues[0]);
-  }
-
-  // Create an options dialog.
-  optionsDialog = Ti.UI.createOptionDialog({
-    options: pickerData,
-    buttonNames: ['Cancel'],
-    selectedIndex: selectedIndex
-  });
-  optionsDialog.show();
-  optionsDialog.addEventListener('click', done);
-}
-
-/**
-* Populate the picker with data.
-*/
-function populatePicker() {
-  switch (args.type) {
-  case 'single-column':
-    // Convert the object into array pairs.
-    pickerValueArray = _.pairs(args.pickerValues[0]);
-
-    // Iterate over all pairs and add the original
-    // value (pair[1]) as a picker row.
-    _.each(pickerValueArray, function(pair, index){
-      var pickerRow = Ti.UI.createPickerRow({
-        title: pair[1]
-      });
-      pickerData.push(pickerRow);
-    });
-
-    // Add the picker data to the picker.
-    picker.add(pickerData);
-
-    // Set the defaults.
-    if (_.isArray(args.selectedValues) && !_.isEmpty(args.selectedValues)) {
-      var rowIndex = getKeyIndexFromPairs(pickerValueArray, args.selectedValues[0]);
-      picker.setSelectedRow(0, rowIndex, false);
-    }
-    break;
-
-  case 'age-range':
-    // Set defaults for age range.
-    args.pickerParams = args.pickerParams || {};
-    args.pickerParams.min = args.pickerParams.min || 18;
-    args.pickerParams.max = args.pickerParams.max || 100;
-
-    var minAge = args.pickerParams.min;
-    var maxAge = args.pickerParams.max;
-
-    // Create 2 picker columns.
-    var columnParams = {width: (OS_ANDROID) ? 100 : undefined};
-    var pickerColumns = [Ti.UI.createPickerColumn(columnParams), Ti.UI.createPickerColumn(columnParams)];
-
-    // Create an array with all ages.
-    var agesArray = _.range(minAge, (maxAge + 1), 1);
-
-    // Fill each column with the full age range.
-    _.each(pickerColumns, function(column, index) {
-      _.each(agesArray, function(age) {
-        pickerColumns[index].addRow(Ti.UI.createPickerRow({
-          title: String(age)
-        }));
-      });
-    });
-
-    // Set columns data.
-    picker.setColumns(pickerColumns);
-
-    // On iOS, reload columns to ensure they show up correctly.
-    if (OS_IOS) {
-      _.each(pickerColumns, function(column) {
-        picker.reloadColumn(column);
-      });
-    }
-
-    // Set the defaults.
-    if (_.isArray(args.selectedValues) && !_.isEmpty(args.selectedValues)) {
-      _.each(args.selectedValues, function(value, columnIndex) {
-        var rowIndex = _.indexOf(agesArray, Number(value));
-        picker.setSelectedRow(columnIndex, rowIndex, false);
-      });
-    }
-    break;
-
-  case 'date-picker':
-    // On Android, the picker type can't bet set after
-    // the picker is created.
-    // On iOS, the picker type can be set after the picker
-    // is created. On iOS 8+, there are intermittent issues
-    // if the picker type is set after the picker is created.
-    // @see https://github.com/danielhanold/danielhanold.pickerwidget/issues/8
-    //
-    // To circumvent both issues, set values on creation.
-    // See pickerView.js
-    break;
-  }
-}
 
 /**
 * Get the value from a selected row.
@@ -248,76 +122,8 @@ function done(e) {
   // Boolean for cancel data.
   var cancel = false;
 
-  switch (args.type) {
-  case 'single-column':
-    if (OS_IOS) {
-      // Determine key and value from actual picker on iOS.
-      var value = getSelectedRowTitle(0);
-      var key = getKeyFromPairs(pickerValueArray, value);
-      var data = [{
-        key: key,
-        value: value
-      }];
-    }
-
-    if (OS_ANDROID) {
-      // Set the data from the picker on Android.
-      e = e || {};
-      e.source = e.source || {};
-      e.source.options = e.source.options || [];
-
-      // Determine if the user clicked cancel.
-      if (e.button === true) {
-        cancel = true;
-      }
-      else {
-        var data = [{
-          key: getKeyFromPairs(pickerValueArray, e.source.options[e.index]),
-          value: e.source.options[e.index]
-        }];
-      }
-    }
-    break;
-
-  case 'age-range':
-    // Get the numbers.
-    var numberLow = Number(picker.getSelectedRow(0).title);
-    var numberHigh = Number(picker.getSelectedRow(1).title);
-
-    // Validation: Ensure high number is higher than low.
-    if (numberLow >= numberHigh) {
-      var alertDialog = Ti.UI.createAlertDialog({
-        title: "Error",
-        message: 'Please pick a valid age range',
-        buttonNames: ['Ok']
-      }).show();
-      return;
-    }
-
-    // Validation: If minDifference is set, ensure age
-    // difference is large enough.
-    if (_.isNumber(args.pickerParams.minDifference)) {
-      if ((numberHigh - numberLow) < Number(args.pickerParams.minDifference)) {
-        var alertDialog = Ti.UI.createAlertDialog({
-          title: "Error",
-          message: 'Ages must be ' + String(args.pickerParams.minDifference) + ' years apart.',
-          buttonNames: ['Ok']
-        }).show();
-        return;
-      }
-    }
-
-    // If validation is passed, set the numbers.
-    data = {
-      low: numberLow,
-      high: numberHigh
-    }
-    break;
-
-  case 'date-picker':
-    // Determine the selected date.
+     // Determine the selected date.
     var selectedDate = picker.getValue();
-
     // Error checking for minimum selected date.
     if (_.isDate(args.pickerParams.maxSelectedDate) && (selectedDate > args.pickerParams.maxSelectedDate)) {
       if (_.isString(args.pickerParams.maxSelectedDateErrorMessage)) {
@@ -344,8 +150,6 @@ function done(e) {
       unixMilliseconds: unixMilliseconds,
       unixSeconds: unixSeconds
     }
-    break;
-  }
 
   // Close the view.
   close({

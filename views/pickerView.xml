@@ -14,6 +14,5 @@
       <Button id="buttonDone" onClick="onDone" title="L('doneButton', 'Done')" />
     </View>
 
-    <Picker id="picker" />
   </View>
 </Alloy>
